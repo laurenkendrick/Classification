@@ -1,0 +1,85 @@
+#Lauren Kendrick
+#August 20, 2018
+#Problem: Classify the type of user for each City Bike ride
+#Data: https://www.capitalbikeshare.com/system-data
+
+import csv
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+import matplotlib.pyplot as plt
+from matplotlib  import cm
+
+#Get data
+ridedata=pd.read_csv('2017-capitalbikeshare-tripdata/2017Q1-capitalbikeshare-tripdata.csv')
+df=ridedata.drop(['Bike number'],axis=1)
+target=ridedata['Member type']
+
+#check for missing values
+df.isnull().sum()  #
+target.isnull().sum() #
+
+#Explore data
+df.dtypes
+#Convert time columns from objects to datetime format
+df['Start date'] = pd.to_datetime(df['Start date'])
+df['End date'] = pd.to_datetime(df['End date'])
+def hr_func(ts):
+    return ts.hour
+df['Start hour']=df['Start date'].apply(hr_func)
+df['Start hour'].describe()
+#Histogram to look for shape of distribution
+bin_values=np.arange(start=0, stop=24,step=1)
+df['Start hour'].hist(bins=bin_values, figsize=[14,6])
+plt.show()  #Peaks at 9am and 6pm
+
+df['Duration'].describe()
+bin_values2=np.arange(start=0, stop=87000,step=1000)
+df['Duration'].hist(bins=bin_values2, figsize=[14,6])
+plt.show()  #Outlier at 86,066
+bin_values3=np.arange(start=0, stop=12500,step=50)
+df['Duration'].hist(bins=bin_values3, figsize=[14,6])
+plt.show()  #Shaped like a Poisson distribution
+
+#Plot data
+fig = plt.figure()
+ax = fig.add_subplot(111)
+scatter = ax.scatter(df['Duration'],df['Start hour'],
+                     c=df['Color'],marker='o')
+ax.set_title('Data exploration')
+ax.set_xlabel('Trip duration')
+ax.set_ylabel('Time (hour)')
+plt.colorbar(scatter)
+plt.show()
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+scatter = ax.scatter(df['Start station number'],df['End station number'],
+                     c=df['Color'],marker='o')
+ax.set_title('Data exploration')
+ax.set_xlabel('Start station')
+ax.set_ylabel('End station')
+plt.colorbar(scatter)
+plt.show()
+
+#Main characteristics are duration, Start hour, and end points
+df_cl=df.drop(['Start date','End date','Start station','End station','Member type'],axis=1)
+#Split data into training and testing data
+df_train,df_test,target_train,target_test=train_test_split(df_cl,target,test_size=0.2,random_state=2)
+
+#Try K-neighbors classification
+#This algorithm says that the member type will be similar to others with a similar bike trip duration, time, and end points
+#Treats station ids as continuous numbers, which may not be appropriate if stations are not numbered sequentially based on geographical nearness
+knn = KNeighborsClassifier()
+knn.fit(df_train, target_train) 
+KNeighborsClassifier(algorithm='auto', leaf_size=30, metric='minkowski',
+           metric_params=None, n_jobs=1, n_neighbors=5, p=2,
+           weights='uniform')
+df_predict=pd.DataFrame(knn.predict(df_test))
+target_test_check=target_test.reset_index()
+df_predict['Actual']=target_test_check['Member type']
+
+df_predict['Correct']=np.where(df_predict[0]==df_predict['Actual'],1,0)
+df_predict['Correct'].mean()
+#Predicted correctly 88.35% of the time
